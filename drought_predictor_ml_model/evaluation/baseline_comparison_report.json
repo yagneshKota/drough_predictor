@@ -1,0 +1,68 @@
+{
+  "7day": {
+    "xgboost": {
+      "accuracy": 0.8808,
+      "macro_f1": 0.7783,
+      "weighted_f1": 0.8901,
+      "log_loss": 0.2986
+    },
+    "random_forest": {
+      "accuracy": 0.8742,
+      "macro_f1": 0.7778,
+      "weighted_f1": 0.8854
+    },
+    "persistence": {
+      "accuracy": 0.907,
+      "macro_f1": 0.7919,
+      "weighted_f1": 0.9067
+    },
+    "majority_class": {
+      "accuracy": 0.74,
+      "macro_f1": 0.1701
+    }
+  },
+  "15day": {
+    "xgboost": {
+      "accuracy": 0.8152,
+      "macro_f1": 0.6748,
+      "weighted_f1": 0.8345,
+      "log_loss": 0.4411
+    },
+    "random_forest": {
+      "accuracy": 0.8037,
+      "macro_f1": 0.6748,
+      "weighted_f1": 0.8267
+    },
+    "persistence": {
+      "accuracy": 0.8593,
+      "macro_f1": 0.6854,
+      "weighted_f1": 0.8583
+    },
+    "majority_class": {
+      "accuracy": 0.7395,
+      "macro_f1": 0.17
+    }
+  },
+  "30day": {
+    "xgboost": {
+      "accuracy": 0.7351,
+      "macro_f1": 0.5597,
+      "weighted_f1": 0.7675,
+      "log_loss": 0.6198
+    },
+    "random_forest": {
+      "accuracy": 0.7257,
+      "macro_f1": 0.5628,
+      "weighted_f1": 0.7613
+    },
+    "persistence": {
+      "accuracy": 0.8025,
+      "macro_f1": 0.5638,
+      "weighted_f1": 0.8
+    },
+    "majority_class": {
+      "accuracy": 0.7384,
+      "macro_f1": 0.1699
+    }
+  }
+}
