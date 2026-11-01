@@ -27,6 +27,9 @@ class DroughtPredictionResponse(BaseModel):
     state: Optional[str] = Field(None, description="State name if provided")
     prediction_date: Optional[str] = Field(None, description="Observation or prediction date (YYYY-MM-DD)")
     model_version: str = Field(default="2.0-optimized-nationwide", description="Version of the deployed ML model")
+    imputation_applied: bool = Field(default=False, description="Indicates if missing features were imputed using training medians")
+    imputed_features: List[str] = Field(default_factory=list, description="List of imputed feature names if imputation was applied")
+    warnings: List[str] = Field(default_factory=list, description="Operational warnings regarding feature quality or missing inputs")
     predictions: Dict[str, HorizonPrediction] = Field(
         ...,
         description="Predictions keyed by horizon ('7day', '15day', '30day')"

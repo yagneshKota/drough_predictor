@@ -7,7 +7,7 @@ and horizon-specific feature slicing.
 import os
 import json
 from pathlib import Path
-from typing import Dict, List, Union, Tuple, Any
+from typing import Dict, List, Union, Tuple, Any, Optional
 import numpy as np
 import pandas as pd
 import joblib
@@ -63,18 +63,42 @@ class DroughtPreprocessor:
             
         return df, metadata
 
-    def prepare_features(self, input_data: Union[Dict[str, Any], List[Dict[str, Any]], pd.DataFrame]) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
+    def prepare_features(
+        self,
+        input_data: Union[Dict[str, Any], List[Dict[str, Any]], pd.DataFrame],
+        allow_imputation: bool = True
+    ) -> Tuple[Dict[str, np.ndarray], Dict[str, Any], List[str]]:
         """
         Validate, impute, scale, and extract horizon-specific arrays.
+        
+        Args:
+            input_data: Input dictionary, list of dictionaries, or pandas DataFrame.
+            allow_imputation: If False, raises ValueError when any of the 53 features are missing.
+                              If True, applies training-set median imputation and reports imputed features.
         
         Returns:
             horizon_arrays: Dict mapping horizon ('7day', '15day', '30day') to scaled numpy array
             metadata: Dict with district, state, prediction_date (if single record)
+            imputed_features: List of feature names that required imputation
         """
         df_raw, metadata = self._to_dataframe(input_data)
         
-        # Ensure all 53 expected features exist in DataFrame; fill missing with NaN for imputer
+        # Identify missing columns
         missing_cols = [c for c in self.all_53_features if c not in df_raw.columns]
+        
+        # Check for NaN in existing columns
+        existing_cols = [c for c in self.all_53_features if c in df_raw.columns]
+        nan_cols = [c for c in existing_cols if df_raw[c].isna().any()]
+        all_missing = sorted(list(set(missing_cols + nan_cols)))
+        
+        if all_missing and not allow_imputation:
+            raise ValueError(
+                f"Strict feature validation failed: observation is missing {len(all_missing)} of 53 required features: "
+                f"{all_missing[:10]}{'...' if len(all_missing) > 10 else ''}. "
+                f"To enable documented training-set median imputation, explicitly set allow_imputation=True."
+            )
+            
+        # If imputation is allowed, populate missing columns with NaN so the pipeline imputer can handle them
         for col in missing_cols:
             df_raw[col] = np.nan
             
@@ -91,4 +115,4 @@ class DroughtPreprocessor:
             for h in ["7day", "15day", "30day"]
         }
         
-        return horizon_arrays, metadata
+        return horizon_arrays, metadata, all_missing

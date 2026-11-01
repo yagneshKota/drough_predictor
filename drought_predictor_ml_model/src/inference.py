@@ -61,16 +61,32 @@ class DroughtPredictor:
             cls._instance = cls()
         return cls._instance
 
-    def predict_single(self, input_features: Dict[str, Any], as_dict: bool = True) -> Union[Dict[str, Any], DroughtPredictionResponse]:
+    def predict_single(
+        self,
+        input_features: Dict[str, Any],
+        allow_imputation: bool = True,
+        as_dict: bool = True
+    ) -> Union[Dict[str, Any], DroughtPredictionResponse]:
         """
         Generate predictions for a single district-week observation.
         
         Args:
             input_features: Dictionary of input environmental and meteorological features.
+            allow_imputation: If False, raises ValueError when any of the 53 features are missing.
+                              If True, applies training-set median imputation and reports imputed features.
             as_dict: If True, returns a standard Python dictionary; else a Pydantic object.
         """
-        horizon_arrays, metadata = self.preprocessor.prepare_features(input_features)
+        horizon_arrays, metadata, imputed_features = self.preprocessor.prepare_features(
+            input_features, allow_imputation=allow_imputation
+        )
         
+        warnings = []
+        if imputed_features:
+            warnings.append(
+                f"Imputation applied: {len(imputed_features)} features were missing and imputed using training-set medians: "
+                f"{imputed_features[:5]}{'...' if len(imputed_features) > 5 else ''}"
+            )
+            
         predictions = {}
         for h in HORIZONS:
             X_h = horizon_arrays[h]
@@ -104,16 +120,26 @@ class DroughtPredictor:
             state=metadata.get("state"),
             prediction_date=metadata.get("prediction_date"),
             model_version="2.0-optimized-nationwide",
+            imputation_applied=bool(imputed_features),
+            imputed_features=imputed_features,
+            warnings=warnings,
             predictions=predictions
         )
         
         return response.model_dump() if as_dict else response
 
-    def predict_batch(self, input_data: Union[List[Dict[str, Any]], pd.DataFrame], as_dict: bool = True) -> Union[Dict[str, Any], BatchPredictionResponse]:
+    def predict_batch(
+        self,
+        input_data: Union[List[Dict[str, Any]], pd.DataFrame],
+        allow_imputation: bool = True,
+        as_dict: bool = True
+    ) -> Union[Dict[str, Any], BatchPredictionResponse]:
         """
         Generate predictions for multiple district-week observations in vectorized batch.
         """
-        horizon_arrays, _ = self.preprocessor.prepare_features(input_data)
+        horizon_arrays, _, imputed_features = self.preprocessor.prepare_features(
+            input_data, allow_imputation=allow_imputation
+        )
         
         if isinstance(input_data, pd.DataFrame):
             records = input_data.to_dict(orient="records")
@@ -124,6 +150,12 @@ class DroughtPredictor:
         all_preds = {h: self.models[h].predict(horizon_arrays[h]) for h in HORIZONS}
         all_probs = {h: self.models[h].predict_proba(horizon_arrays[h]) for h in HORIZONS}
         
+        warnings = []
+        if imputed_features:
+            warnings.append(
+                f"Batch imputation applied: {len(imputed_features)} features were imputed using training medians."
+            )
+            
         results = []
         for i in range(n_samples):
             rec = records[i]
@@ -155,6 +187,9 @@ class DroughtPredictor:
                 state=s_name,
                 prediction_date=p_date,
                 model_version="2.0-optimized-nationwide",
+                imputation_applied=bool(imputed_features),
+                imputed_features=imputed_features,
+                warnings=warnings,
                 predictions=preds_i
             ))
             
@@ -166,9 +201,19 @@ class DroughtPredictor:
         return batch_resp.model_dump() if as_dict else batch_resp
 
 # Top-level functional API
-def predict_drought(input_data: Union[Dict[str, Any], List[Dict[str, Any]], pd.DataFrame], as_dict: bool = True) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+def predict_drought(
+    input_data: Union[Dict[str, Any], List[Dict[str, Any]], pd.DataFrame],
+    allow_imputation: bool = True,
+    as_dict: bool = True
+) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Standard high-level prediction function for backend developers.
+    
+    Args:
+        input_data: Dict (single observation), List[Dict] or DataFrame (batch).
+        allow_imputation: If False, enforces strict validation requiring all 53 features.
+                          If True, applies training-set median imputation and flags imputed fields.
+        as_dict: If True, returns dict; else returns Pydantic response models.
     
     Usage:
         from src.inference import predict_drought
@@ -176,8 +221,8 @@ def predict_drought(input_data: Union[Dict[str, Any], List[Dict[str, Any]], pd.D
     """
     predictor = DroughtPredictor.get_instance()
     if isinstance(input_data, (list, pd.DataFrame)):
-        return predictor.predict_batch(input_data, as_dict=as_dict)
+        return predictor.predict_batch(input_data, allow_imputation=allow_imputation, as_dict=as_dict)
     elif isinstance(input_data, dict):
-        return predictor.predict_single(input_data, as_dict=as_dict)
+        return predictor.predict_single(input_data, allow_imputation=allow_imputation, as_dict=as_dict)
     else:
         raise TypeError(f"Invalid input type: {type(input_data)}. Expected dict, list of dicts, or DataFrame.")

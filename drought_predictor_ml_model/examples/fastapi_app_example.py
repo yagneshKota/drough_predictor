@@ -1,6 +1,6 @@
 """
 FastAPI Backend Integration Example for India Drought Prediction.
-Provides RESTful endpoints for single and batch predictions.
+Provides RESTful endpoints for single and batch predictions with strict feature validation.
 
 To run:
     uvicorn examples.fastapi_app_example:app --host 0.0.0.0 --port 8000 --reload
@@ -43,12 +43,20 @@ class PredictionInputRequest(BaseModel):
     district: Optional[str] = Field("Kushinagar", description="District name")
     state: Optional[str] = Field("Uttar Pradesh", description="State name")
     date: Optional[str] = Field("2025-01-01", description="Observation date (YYYY-MM-DD)")
+    allow_imputation: bool = Field(
+        default=False,
+        description="Set to True to allow training-median imputation for missing features. If False, strict validation requires all 53 features."
+    )
     features: Dict[str, float] = Field(
         ...,
         description="Dictionary of input environmental and meteorological features (e.g. rainfall_7d, soil_moisture_rootzone, ndvi, current_cdi...)"
     )
 
 class BatchInputRequest(BaseModel):
+    allow_imputation: bool = Field(
+        default=False,
+        description="Set to True to allow training-median imputation for missing features."
+    )
     records: List[Dict[str, Any]] = Field(..., description="List of district observations")
 
 @app.get("/health", tags=["System"])
@@ -81,8 +89,17 @@ def predict_single_observation(request: PredictionInputRequest):
         if request.date:
             payload["date"] = request.date
             
-        response = predictor.predict_single(payload, as_dict=False)
+        response = predictor.predict_single(
+            payload,
+            allow_imputation=request.allow_imputation,
+            as_dict=False
+        )
         return response
+    except ValueError as ve:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Validation error: {str(ve)}"
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -95,8 +112,17 @@ def predict_batch_observations(request: BatchInputRequest):
     Generate multi-horizon drought predictions for a batch of district records.
     """
     try:
-        response = predictor.predict_batch(request.records, as_dict=False)
+        response = predictor.predict_batch(
+            request.records,
+            allow_imputation=request.allow_imputation,
+            as_dict=False
+        )
         return response
+    except ValueError as ve:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Validation error: {str(ve)}"
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

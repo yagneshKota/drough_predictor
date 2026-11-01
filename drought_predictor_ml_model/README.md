@@ -227,17 +227,18 @@ Visualizations are available in `feature_information/` and `evaluation/`.
 
 ## 13. Installation
 
-Clone this repository and install the lightweight inference requirements:
+Clone the shared repository and navigate to the ML component:
 
 ```bash
-git clone https://github.com/your-username/drought_predictor_ml_model.git
-cd drought_predictor_ml_model
+# Clone the shared project repository
+git clone https://github.com/yagneshKota/drough_predictor.git
+cd drough_predictor/drought_predictor_ml_model
 
 # Create virtual environment
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Install core dependencies
+# Install core inference dependencies
 pip install -r requirements.txt
 ```
 
@@ -318,15 +319,28 @@ sample_input = {
 
 ## 16. How to Generate Predictions
 
+### Standard Mode (Strict Feature Validation)
+By default, the model enforces strict feature validation. If any of the 53 required features are missing, it raises a clear `ValueError` detailing the exact missing columns:
+
 ```python
 from src.inference import predict_drought
 
-# Generate predictions
-result = predict_drought(sample_input)
+# Strict validation: requires all 53 features (default)
+result = predict_drought(sample_input, allow_imputation=False)
 
-# Inspect 7-day forecast
 print(result["predictions"]["7day"]["predicted_label"])
 # Outputs: 'Mild Drought (D0)'
+```
+
+### Documented Imputation Mode (Handling Partial Features)
+If your application needs to handle partial observations (e.g. temporary sensor outages), set `allow_imputation=True`. The model will substitute training-set medians, flag `imputation_applied=True`, and list the imputed fields in `warnings`:
+
+```python
+# Imputation mode: imputes missing values using training-set medians
+result = predict_drought(partial_input, allow_imputation=True)
+
+if result["imputation_applied"]:
+    print("Warning: Certain features were imputed:", result["imputed_features"])
 ```
 
 ---
